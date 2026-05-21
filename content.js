@@ -60,15 +60,25 @@ function scrapeArticlePage() {
       if (!el) break;
       if (el.tagName === 'H2') {
         targetH2 = el;
-        clinicName = el.innerText.trim();
         break;
       }
     }
     // sectionがh2自体か、sectionの内側にh2がある場合
-    if (!clinicName) {
+    if (!targetH2) {
       targetH2 = section.querySelector('h2')
         || section.closest('section, div')?.querySelector('h2');
-      clinicName = targetH2?.innerText?.trim() || '';
+    }
+
+    if (targetH2) {
+      // 見出しの中にある最初の span もしくは a タグのテキスト（地域名「（見沼区）」等を除いた純粋な医院名）を優先取得
+      const nameEl = targetH2.querySelector('span, a');
+      if (nameEl) {
+        clinicName = nameEl.innerText.trim();
+      } else {
+        clinicName = targetH2.innerText.trim();
+      }
+      // 末尾のカッコ表記（例：「（箕面市桜ヶ丘）」や「(見沼区)」）が残っている場合は除去
+      clinicName = clinicName.replace(/[（\(][^）\)]*[）\)]$/, '').trim();
     }
 
     // ── PR判定 ──────────────────────────────
