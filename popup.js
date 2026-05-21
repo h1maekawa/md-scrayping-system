@@ -161,7 +161,12 @@ function download(content, filename, mime) {
 // ──────────────────────────────────────────
 // イベント
 // ──────────────────────────────────────────
-btnStart.addEventListener('click',  () => { bg('start');  refresh(); });
+btnStart.addEventListener('click',  () => {
+  const maxPagesInput = document.getElementById('maxPagesInput');
+  const maxPages = parseInt(maxPagesInput?.value, 10) || 50;
+  bg('start', { maxPages });
+  refresh();
+});
 btnResume.addEventListener('click', () => { bg('resume'); refresh(); });
 btnStop.addEventListener('click',   async () => { await bg('stop'); refresh(); });
 
@@ -191,8 +196,20 @@ chrome.runtime.onMessage.addListener(msg => {
   if (msg.action === 'statusUpdate') refresh();
 });
 
+const maxPagesInput = document.getElementById('maxPagesInput');
+if (maxPagesInput) {
+  maxPagesInput.addEventListener('change', () => {
+    const val = parseInt(maxPagesInput.value, 10) || 50;
+    chrome.storage.local.set({ maxPages: val });
+  });
+}
+
 // 起動時：即座にストレージ読み込み
 (async () => {
+  const d = await chrome.storage.local.get(['maxPages']);
+  if (maxPagesInput && d.maxPages) {
+    maxPagesInput.value = d.maxPages;
+  }
   await refresh();
   setInterval(refresh, 800);
 })();

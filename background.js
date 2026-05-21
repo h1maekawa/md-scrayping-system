@@ -22,6 +22,7 @@ let state = {
   articlesDone: 0,      // 処理済み記事数
   clinics: [],          // 抽出した医院データ
   errors: [],
+  maxPages: 50,
 };
 
 // ──────────────────────────────────────────
@@ -78,8 +79,9 @@ async function runListPhase(tabId) {
   state.phase = 'list';
   const urlSet = new Set(state.articleUrls);
   let emptyStreak = 0;
+  const limitPages = state.maxPages || 50;
 
-  for (let page = state.currentPage || 1; page <= MAX_PAGES; page++) {
+  for (let page = state.currentPage || 1; page <= limitPages; page++) {
     if (!state.running) break;
 
     const url = page === 1 ? BASE_URL : `${BASE_URL}page/${page}/`;
@@ -164,12 +166,14 @@ async function runArticlePhase(tabId) {
 // ──────────────────────────────────────────
 // メイン
 // ──────────────────────────────────────────
-async function startScraping(resume = false) {
+async function startScraping(resume = false, maxPages = 50) {
   if (state.running) return;
   state.running = true;
 
   if (!resume) {
     await clearStorage();
+    state.maxPages = maxPages;
+    await saveToStorage();
   } else {
     await loadFromStorage();
   }
@@ -214,22 +218,28 @@ async function saveToStorage() {
     currentPage: state.currentPage,
     phase: state.phase,
     errors: state.errors,
+    maxPages: state.maxPages,
   });
 }
 
 async function loadFromStorage() {
-  const d = await chrome.storage.local.get(['clinics','articleUrls','articlesDone','currentPage','phase','errors']);
+  const d = await chrome.storage.local.get(['clinics','articleUrls','articlesDone','currentPage','phase','errors','maxPages']);
   if (d.clinics)      state.clinics      = d.clinics;
   if (d.articleUrls)  state.articleUrls  = d.articleUrls;
   if (d.articlesDone) state.articlesDone = d.articlesDone;
   if (d.currentPage)  state.currentPage  = d.currentPage;
   if (d.errors)       state.errors       = d.errors;
+  if (d.maxPages)     state.maxPages     = d.maxPages;
 }
 
 async function clearStorage() {
+  const d = await chrome.storage.local.get(['maxPages']);
   await chrome.storage.local.clear();
+  if (d.maxPages) {
+    await chrome.storage.local.set({ maxPages: d.maxPages });
+  }
   state = { running: true, phase: 'idle', currentPage: 0, totalPages: 0,
-            articleUrls: [], articlesDone: 0, clinics: [], errors: [] };
+            articleUrls: [], articlesDone: 0, clinics: [], errors: [], maxPages: d.maxPages || 50 };
 }
 
 // ──────────────────────────────────────────
@@ -240,7 +250,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.action) {
 
       case 'start':
-        startScraping(false);
+        startScraping(false, msg.maxPages || 50);
         sendResponse({ ok: true });
         break;
 

@@ -50,23 +50,25 @@ function scrapeArticlePage() {
   clinicSections.forEach(section => {
     const clinicId = section.id; // 例: "clinic-2001078774"
 
-    // ── 医院名（直近のh2）の取得 ────────────────────
+    // ── 医院名（直近 of h2）の取得 ────────────────────
     let clinicName = '';
-    let targetH2 = null;
-    // sectionがh2より後にある場合、直前のh2を探す
-    let el = section;
-    while (el) {
-      el = el.previousElementSibling;
-      if (!el) break;
-      if (el.tagName === 'H2') {
-        targetH2 = el;
-        break;
-      }
-    }
-    // sectionがh2自体か、sectionの内側にh2がある場合
+    // 1. sectionの内側にh2があるか、自身がh2の場合
+    let targetH2 = section.querySelector('h2') || (section.tagName === 'H2' ? section : null);
+
+    // 2. 内側にない場合、直前のh2を探す（ただし別の医院ブロックを跨がない）
     if (!targetH2) {
-      targetH2 = section.querySelector('h2')
-        || section.closest('section, div')?.querySelector('h2');
+      let el = section.previousElementSibling;
+      while (el) {
+        if (el.tagName === 'H2') {
+          targetH2 = el;
+          break;
+        }
+        // 他の医院ブロックに到達した場合はストップ
+        if (el.id?.startsWith('clinic-')) {
+          break;
+        }
+        el = el.previousElementSibling;
+      }
     }
 
     if (targetH2) {
