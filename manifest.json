@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Medical DOC PR Scraper",
+  "version": "1.0.0",
+  "description": "Medical DOCのおすすめ記事からPR医院を抽出・一覧化するツール",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://medicaldoc.jp/*",
+    "https://media.medicaldoc.jp/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://medicaldoc.jp/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

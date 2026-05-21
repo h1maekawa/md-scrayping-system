@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Medical DOC PR Scraper</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 360px;
+      font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Yu Gothic', sans-serif;
+      font-size: 13px;
+      background: #f5f7fa;
+      color: #1a1a2e;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a6b4a 0%, #2e9970 100%);
+      color: white;
+      padding: 14px 16px 12px;
+    }
+    .header h1 { font-size: 14px; font-weight: 700; }
+    .header p  { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+    .body { padding: 12px; }
+
+    .status-card {
+      background: white;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px; margin-bottom: 10px;
+    }
+    .status-badge.idle    { background:#e8f5e9; color:#2e7d32; }
+    .status-badge.running { background:#fff3e0; color:#e65100; }
+    .status-badge.done    { background:#e3f2fd; color:#1565c0; }
+    .dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .running .dot { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .stat-item  { text-align:center; background:#f8fafc; border-radius:6px; padding:8px 4px; }
+    .stat-value { font-size:20px; font-weight:700; color:#1a6b4a; line-height:1; }
+    .stat-label { font-size:10px; color:#666; margin-top:3px; }
+
+    .progress-wrap { margin-top:10px; }
+    .progress-label { display:flex; justify-content:space-between; font-size:10px; color:#888; margin-bottom:4px; }
+    .progress-bar   { height:5px; background:#e0e0e0; border-radius:3px; overflow:hidden; }
+    .progress-fill  { height:100%; background:linear-gradient(90deg,#1a6b4a,#2e9970); transition:width .4s; border-radius:3px; }
+
+    .phase-text { margin-top:8px; font-size:11px; color:#555; min-height:16px; }
+
+    .error-box {
+      background:#fff3f3; border-left:3px solid #e53935;
+      border-radius:4px; padding:8px 10px; margin-top:8px;
+      font-size:10px; color:#c62828; max-height:80px; overflow-y:auto; display:none;
+    }
+    .error-box.has-errors { display:block; }
+
+    .btn-group { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+    .btn-group.single { grid-template-columns:1fr; }
+    button {
+      display:flex; align-items:center; justify-content:center; gap:6px;
+      padding:9px 12px; border:none; border-radius:7px;
+      font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+    }
+    button:hover  { filter:brightness(.92); }
+    button:active { transform:scale(.97); }
+    button:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-primary { background:#1a6b4a; color:white; }
+    .btn-resume  { background:#2e9970; color:white; }
+    .btn-stop    { background:#d32f2f; color:white; }
+    .btn-csv     { background:#1565c0; color:white; }
+    .btn-json    { background:#6a1b9a; color:white; }
+    .btn-clear   { background:#e0e0e0; color:#444; font-weight:500; }
+
+    .preview-section {
+      background:white; border-radius:8px; padding:10px 12px;
+      box-shadow:0 1px 3px rgba(0,0,0,.08); margin-top:8px;
+    }
+    .preview-title { font-size:11px; font-weight:700; color:#333; margin-bottom:8px; }
+    .preview-list  { max-height:130px; overflow-y:auto; }
+    .preview-item  {
+      padding:5px 0; border-bottom:1px solid #f0f0f0; font-size:11px;
+    }
+    .preview-item:last-child { border-bottom:none; }
+    .pname  { font-weight:600; color:#1a1a2e; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .psub   { font-size:10px; color:#888; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .preview-empty { font-size:11px; color:#999; text-align:center; padding:12px 0; }
+
+    .footer { font-size:10px; color:#aaa; text-align:center; padding:6px 12px 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🏥 Medical DOC PR Scraper</h1>
+    <p>記事内の医院情報を自動収集・CSV化</p>
+  </div>
+
+  <div class="body">
+    <div class="status-card">
+      <div class="status-badge idle" id="statusBadge">
+        <span class="dot"></span><span id="statusText">待機中</span>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="clinicCount">0</div>
+          <div class="stat-label">取得医院数</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="articlesDone">0</div>
+          <div class="stat-label">処理記事数</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="articlesTotal">0</div>
+          <div class="stat-label">総記事数</div>
+        </div>
+      </div>
+
+      <div class="progress-wrap" id="progressWrap" style="display:none">
+        <div class="progress-label">
+          <span id="progressLabel">進捗</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      </div>
+
+      <div class="phase-text" id="phaseText"></div>
+      <div class="error-box" id="errorBox"></div>
+    </div>
+
+    <!-- ボタン -->
+    <div class="btn-group" id="startGroup">
+      <button class="btn-primary" id="btnStart">▶ 開始</button>
+      <button class="btn-resume" id="btnResume">↩ 再開</button>
+    </div>
+    <div class="btn-group single" id="stopGroup" style="display:none">
+      <button class="btn-stop" id="btnStop">⏹ 停止</button>
+    </div>
+    <div class="btn-group">
+      <button class="btn-csv"  id="btnCsv"  disabled>⬇ CSV</button>
+      <button class="btn-json" id="btnJson" disabled>⬇ JSON</button>
+    </div>
+    <div class="btn-group single">
+      <button class="btn-clear" id="btnClear">🗑 データクリア</button>
+    </div>
+
+    <!-- プレビュー -->
+    <div class="preview-section">
+      <div class="preview-title">📋 最近取得した医院（最新5件）</div>
+      <div class="preview-list" id="previewList">
+        <div class="preview-empty">データがありません</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Medical DOC PR Scraper v2.0.0</div>
+  <script src="popup.js"></script>
+</body>
+</html>
